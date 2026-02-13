@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "x-cli"
+version = "0.1.0"
+description = "Open-source CLI for composing and publishing X posts"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Twitter CLI Contributors" },
+]
+keywords = ["x", "twitter", "cli", "automation", "social"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Internet",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "platformdirs>=4.2.2",
+  "python-dotenv>=1.0.1",
+  "typer>=0.12.3",
+  "xdk>=0.8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11.1",
+  "pytest>=8.3.2",
+  "ruff>=0.6.4",
+]
+
+[project.scripts]
+xcli = "xcli.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xcli"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/xcli/cmd/*.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "xdk"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "xdk.*"
+ignore_missing_imports = true
