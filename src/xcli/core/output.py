@@ -16,7 +16,20 @@ def emit(data: Mapping[str, Any], *, json_output: bool) -> None:
     if isinstance(message, str) and message:
         print(message)
 
-    for key in ("id", "url", "username", "name", "mode", "chars", "token_path", "warning"):
+    for key in (
+        "id",
+        "url",
+        "username",
+        "name",
+        "mode",
+        "chars",
+        "count",
+        "logged_in",
+        "expires_at",
+        "media_count",
+        "token_path",
+        "warning",
+    ):
         value = data.get(key)
         if value is None:
             continue

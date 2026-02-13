@@ -27,3 +27,19 @@ def test_token_store_syncs_legacy_if_present(tmp_path: Path) -> None:
     assert legacy.exists()
     assert "new" in primary.read_text()
     assert "new" in legacy.read_text()
+
+
+def test_token_store_clear_removes_primary_and_legacy(tmp_path: Path) -> None:
+    primary = tmp_path / "cfg" / "auth.json"
+    legacy = tmp_path / "legacy" / "auth.json"
+    primary.parent.mkdir(parents=True, exist_ok=True)
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    primary.write_text('{"access_token":"a"}')
+    legacy.write_text('{"access_token":"b"}')
+
+    store = TokenStore(primary=primary, legacy=legacy)
+    removed = store.clear()
+
+    assert set(removed) == {primary, legacy}
+    assert not primary.exists()
+    assert not legacy.exists()

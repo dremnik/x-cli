@@ -1,0 +1,35 @@
+from pathlib import Path
+
+import pytest
+
+from xcli.core.errors import UsageError
+from xcli.core.x_client import _detect_upload_media_type, validate_media_files
+
+
+def test_detect_upload_media_type_accepts_png(tmp_path: Path) -> None:
+    file_path = tmp_path / "image.png"
+    file_path.write_bytes(b"png")
+    assert _detect_upload_media_type(file_path) == "image/png"
+
+
+def test_detect_upload_media_type_rejects_unsupported(tmp_path: Path) -> None:
+    file_path = tmp_path / "notes.txt"
+    file_path.write_text("hello")
+    with pytest.raises(UsageError):
+        _detect_upload_media_type(file_path)
+
+
+def test_validate_media_files_rejects_missing_file(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.png"
+    with pytest.raises(UsageError):
+        validate_media_files([missing])
+
+
+def test_validate_media_files_rejects_too_many(tmp_path: Path) -> None:
+    media_files = []
+    for index in range(5):
+        file_path = tmp_path / f"{index}.png"
+        file_path.write_bytes(b"png")
+        media_files.append(file_path)
+    with pytest.raises(UsageError):
+        validate_media_files(media_files)

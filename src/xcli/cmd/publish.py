@@ -7,13 +7,18 @@ from pathlib import Path
 
 import typer
 
-from xcli.core.config import load_settings
+from xcli.core.errors import UsageError
 from xcli.core.output import emit
 from xcli.core.posting import Operation, build_payload
+from xcli.core.session import get_token_scopes, make_authed_client
 from xcli.core.text_input import read_text_input
-from xcli.core.token_store import TokenStore
-from xcli.core.x_auth import refresh_if_needed
-from xcli.core.x_client import create_post, get_me, make_user_client, post_url
+from xcli.core.x_client import (
+    create_post,
+    get_me,
+    post_url,
+    upload_media_files,
+    validate_media_files,
+)
 
 
 def _build_confirmation_preview(
@@ -21,6 +26,7 @@ def _build_confirmation_preview(
     op: Operation,
     text: str,
     to: str | None,
+    media_files: list[Path],
     now: datetime | None = None,
 ) -> str:
     stamp_dt = now or datetime.now().astimezone()
@@ -36,6 +42,10 @@ def _build_confirmation_preview(
         lines.append(f"Reply to: {to}")
     if op == "quote" and to:
         lines.append(f"Quote target: {to}")
+    if media_files:
+        lines.append(f"Media files: {len(media_files)}")
+        for file_path in media_files:
+            lines.append(f"  - {file_path}")
 
     lines.extend(
         [
@@ -55,50 +65,48 @@ def _run_publish(
     to: str | None,
     text: str | None,
     file: Path | None,
+    media: list[Path] | None,
     stdin: bool,
     dry_run: bool,
     yes: bool,
     json_output: bool,
 ) -> None:
     body = read_text_input(text=text, file_path=file, use_stdin=stdin)
-    payload = build_payload(op=op, text=body, to_id=to)
+    media_files = list(media or [])
+    if op == "quote" and media_files:
+        raise UsageError("quote does not support media attachments.")
+    validate_media_files(media_files)
+    if media_files and "media.write" not in get_token_scopes():
+        raise UsageError(
+            "Media upload requires `media.write` scope. "
+            "Run `xcli auth login` again with scopes including media.write."
+        )
+
     live = not dry_run
 
     if not live:
+        payload = build_payload(op=op, text=body, to_id=to)
         emit(
             {
                 "message": f"Dry run: {op} payload ready.",
                 "mode": "dry-run",
                 "operation": op,
                 "payload": payload,
+                "media_files": [str(path) for path in media_files],
             },
             json_output=json_output,
         )
         return
 
     if not yes:
-        typer.echo(_build_confirmation_preview(op=op, text=body, to=to))
+        typer.echo(_build_confirmation_preview(op=op, text=body, to=to, media_files=media_files))
         confirmed = typer.confirm("Post this now?", default=False)
         if not confirmed:
             raise typer.Exit(code=0)
 
-    settings = load_settings()
-    store = TokenStore()
-    token = store.load()
-    if not token:
-        raise typer.BadParameter("No token found. Run `xcli auth login` first.")
-    if not token.get("access_token"):
-        raise typer.BadParameter("Token file is missing access_token. Run `xcli auth login`.")
-
-    refreshed = refresh_if_needed(settings, token)
-    if refreshed != token:
-        store.save(refreshed)
-
-    access_token = refreshed.get("access_token")
-    if not isinstance(access_token, str) or not access_token:
-        raise typer.BadParameter("Token file is missing access_token. Run `xcli auth login`.")
-
-    client = make_user_client(access_token)
+    client = make_authed_client()
+    media_ids = upload_media_files(client, media_files)
+    payload = build_payload(op=op, text=body, to_id=to, media_ids=media_ids)
     created = create_post(client, payload)
     me = get_me(client)
 
@@ -109,6 +117,7 @@ def _run_publish(
         "id": created["id"],
         "url": post_url(me.get("username"), created["id"]),
         "username": me.get("username"),
+        "media_count": len(media_ids),
     }
     emit(out, json_output=json_output)
 
@@ -116,6 +125,11 @@ def _run_publish(
 def post_cmd(
     text: str | None = typer.Argument(None, help="Post text."),
     file: Path | None = typer.Option(None, "--file", help="Read post text from a file."),
+    media: list[Path] | None = typer.Option(
+        None,
+        "--media",
+        help="Attach image file (repeatable).",
+    ),
     stdin: bool = typer.Option(False, "--stdin", help="Read post text from stdin."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview payload without posting."),
     yes: bool = typer.Option(False, "--yes", help="Skip send confirmation prompt."),
@@ -126,6 +140,7 @@ def post_cmd(
         to=None,
         text=text,
         file=file,
+        media=media,
         stdin=stdin,
         dry_run=dry_run,
         yes=yes,
@@ -137,6 +152,11 @@ def reply_cmd(
     text: str | None = typer.Argument(None, help="Reply text."),
     to: str = typer.Option(..., "--to", help="Post ID to reply to."),
     file: Path | None = typer.Option(None, "--file", help="Read post text from a file."),
+    media: list[Path] | None = typer.Option(
+        None,
+        "--media",
+        help="Attach image file (repeatable).",
+    ),
     stdin: bool = typer.Option(False, "--stdin", help="Read post text from stdin."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview payload without posting."),
     yes: bool = typer.Option(False, "--yes", help="Skip send confirmation prompt."),
@@ -147,6 +167,7 @@ def reply_cmd(
         to=to,
         text=text,
         file=file,
+        media=media,
         stdin=stdin,
         dry_run=dry_run,
         yes=yes,
@@ -158,6 +179,11 @@ def quote_cmd(
     text: str | None = typer.Argument(None, help="Quote post text."),
     to: str = typer.Option(..., "--to", help="Post ID to quote."),
     file: Path | None = typer.Option(None, "--file", help="Read post text from a file."),
+    media: list[Path] | None = typer.Option(
+        None,
+        "--media",
+        help="Attach image file (repeatable).",
+    ),
     stdin: bool = typer.Option(False, "--stdin", help="Read post text from stdin."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview payload without posting."),
     yes: bool = typer.Option(False, "--yes", help="Skip send confirmation prompt."),
@@ -168,6 +194,7 @@ def quote_cmd(
         to=to,
         text=text,
         file=file,
+        media=media,
         stdin=stdin,
         dry_run=dry_run,
         yes=yes,

@@ -30,6 +30,14 @@ class TokenStore:
         if sync_legacy_if_exists and self.legacy.exists():
             self._write_json(self.legacy, payload)
 
+    def clear(self) -> list[Path]:
+        removed: list[Path] = []
+        for path in (self.primary, self.legacy):
+            if path.exists():
+                path.unlink()
+                removed.append(path)
+        return removed
+
     @staticmethod
     def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

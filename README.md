@@ -51,14 +51,29 @@ xcli post "shipping small daily" --dry-run
 xcli post --file draft.txt
 ```
 
+7. Attach media (repeat `--media` up to 4 files):
+
+```bash
+xcli post "launch day" --media image1.png --media image2.jpg
+```
+
+Currently supported media types are image uploads accepted by the X media upload endpoint (jpeg, png, webp, bmp, tiff).
+Media upload requires OAuth scope `media.write`; if you logged in before this was added,
+run `xcli auth login` again to refresh token scopes.
+
 ## Commands
 
 - `xcli auth login`
 - `xcli auth whoami`
+- `xcli auth status`
+- `xcli auth logout`
 - `xcli compose`
 - `xcli post`
 - `xcli reply --to <tweet_id>`
 - `xcli quote --to <tweet_id>`
+- `xcli posts mine`
+- `xcli posts get --id <tweet_id>`
+- `xcli timeline --user <handle>`
 
 ## Safety model
 

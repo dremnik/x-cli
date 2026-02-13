@@ -21,3 +21,18 @@ def test_build_reply_payload() -> None:
 def test_build_quote_payload_requires_target() -> None:
     with pytest.raises(UsageError):
         build_payload(op="quote", text="hey", to_id=None)
+
+
+def test_build_post_payload_with_media() -> None:
+    payload = build_payload(op="post", text="hey", media_ids=["1", "2"])
+    assert payload == {"text": "hey", "media": {"media_ids": ["1", "2"]}}
+
+
+def test_build_quote_payload_rejects_media() -> None:
+    with pytest.raises(UsageError):
+        build_payload(op="quote", text="hey", to_id="123", media_ids=["1"])
+
+
+def test_build_payload_rejects_too_many_media() -> None:
+    with pytest.raises(UsageError):
+        build_payload(op="post", text="hey", media_ids=["1", "2", "3", "4", "5"])

@@ -13,6 +13,7 @@ DEFAULT_REDIRECT_URI = "http://localhost:3000/callback"
 DEFAULT_SCOPES = (
     "tweet.read",
     "tweet.write",
+    "media.write",
     "users.read",
     "offline.access",
 )
