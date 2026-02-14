@@ -244,11 +244,19 @@ def _collect_posts(pages: Iterator[Any], *, limit: int) -> list[dict[str, Any]]:
     return collected
 
 
-def get_user_posts(client: Any, user_id: str, *, limit: int = 10) -> list[dict[str, Any]]:
+def get_user_posts(
+    client: Any,
+    user_id: str,
+    *,
+    limit: int = 10,
+    exclude_replies: bool = False,
+) -> list[dict[str, Any]]:
+    exclude_entities = ["replies"] if exclude_replies else None
     try:
         pages = client.users.get_posts(
             id=user_id,
             max_results=min(max(limit, 5), 100),
+            exclude=exclude_entities,
             tweet_fields=DEFAULT_POST_FIELDS,
             expansions=["author_id"],
             user_fields=DEFAULT_USER_FIELDS,
@@ -259,11 +267,19 @@ def get_user_posts(client: Any, user_id: str, *, limit: int = 10) -> list[dict[s
     return _collect_posts(pages, limit=limit)
 
 
-def get_user_timeline(client: Any, user_id: str, *, limit: int = 10) -> list[dict[str, Any]]:
+def get_user_timeline(
+    client: Any,
+    user_id: str,
+    *,
+    limit: int = 10,
+    exclude_replies: bool = False,
+) -> list[dict[str, Any]]:
+    exclude_entities = ["replies"] if exclude_replies else None
     try:
         pages = client.users.get_timeline(
             id=user_id,
             max_results=min(max(limit, 5), 100),
+            exclude=exclude_entities,
             tweet_fields=DEFAULT_POST_FIELDS,
             expansions=["author_id"],
             user_fields=DEFAULT_USER_FIELDS,

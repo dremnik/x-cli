@@ -11,6 +11,7 @@
 - [x] Investigate tweet scheduling endpoint availability in public XDK/OpenAPI.
 - [x] Add tests for new functionality and run validation (`pytest`, `ruff`, `mypy`).
 - [x] Fix OAuth callback handling for WSL/manual browser flows (avoid immediate 0s timeout).
+- [x] Add `--exclude-replies` filter support for `posts mine` and `timeline` lookups.
 
 ### Notes
 

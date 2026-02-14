@@ -81,8 +81,10 @@ run `xcli auth login` again to refresh token scopes.
 - `xcli reply --to <tweet_id>`
 - `xcli quote --to <tweet_id>`
 - `xcli posts mine`
+- `xcli posts mine --replies false`
 - `xcli posts get --id <tweet_id>`
 - `xcli timeline --user <handle>`
+- `xcli timeline --user <handle> --replies false`
 
 ## Safety model
 

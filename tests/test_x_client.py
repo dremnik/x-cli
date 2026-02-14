@@ -3,7 +3,21 @@ from pathlib import Path
 import pytest
 
 from xcli.core.errors import UsageError
-from xcli.core.x_client import _detect_upload_media_type, validate_media_files
+from xcli.core.x_client import _detect_upload_media_type, get_user_posts, validate_media_files
+
+
+class _FakeUsers:
+    def __init__(self) -> None:
+        self.last_kwargs: dict[str, object] = {}
+
+    def get_posts(self, **kwargs: object) -> list[dict[str, object]]:
+        self.last_kwargs = kwargs
+        return [{"data": []}]
+
+
+class _FakeClient:
+    def __init__(self) -> None:
+        self.users = _FakeUsers()
 
 
 def test_detect_upload_media_type_accepts_png(tmp_path: Path) -> None:
@@ -33,3 +47,17 @@ def test_validate_media_files_rejects_too_many(tmp_path: Path) -> None:
         media_files.append(file_path)
     with pytest.raises(UsageError):
         validate_media_files(media_files)
+
+
+def test_get_user_posts_sets_exclude_replies_when_requested() -> None:
+    client = _FakeClient()
+    posts = get_user_posts(client, "42", limit=5, exclude_replies=True)
+    assert posts == []
+    assert client.users.last_kwargs["exclude"] == ["replies"]
+
+
+def test_get_user_posts_keeps_replies_by_default() -> None:
+    client = _FakeClient()
+    posts = get_user_posts(client, "42", limit=5)
+    assert posts == []
+    assert client.users.last_kwargs["exclude"] is None

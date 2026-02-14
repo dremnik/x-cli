@@ -711,8 +711,8 @@ wheels = [
 ]
 
 [[package]]
-name = "x-cli"
-version = "0.1.0"
+name = "xcli-v2"
+version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "platformdirs" },

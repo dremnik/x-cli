@@ -33,9 +33,19 @@ def _print_post_list(posts: list[dict[str, Any]]) -> None:
         print(f"  {text}")
 
 
+def _parse_bool_text(value: str, *, option_name: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "0", "no", "n"}:
+        return False
+    raise typer.BadParameter(f"{option_name} must be true or false.")
+
+
 @app.command("mine")
 def mine(
     limit: int = typer.Option(10, "--limit", min=1, max=100, help="Number of posts to return."),
+    replies: str = typer.Option("true", "--replies", help="Include replies: true or false."),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     client = make_authed_client()
@@ -45,7 +55,8 @@ def mine(
     if not isinstance(user_id, str) or not user_id:
         raise ApiError("Authenticated user lookup did not include an id.")
 
-    posts = get_user_posts(client, user_id, limit=limit)
+    include_replies = _parse_bool_text(replies, option_name="--replies")
+    posts = get_user_posts(client, user_id, limit=limit, exclude_replies=not include_replies)
     output = {
         "message": "Fetched recent posts.",
         "user": {

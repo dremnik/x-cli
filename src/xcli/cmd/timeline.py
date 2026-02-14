@@ -26,9 +26,19 @@ def _one_line_text(value: Any) -> str:
     return " ".join(value.split())
 
 
+def _parse_bool_text(value: str, *, option_name: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "0", "no", "n"}:
+        return False
+    raise typer.BadParameter(f"{option_name} must be true or false.")
+
+
 def timeline_cmd(
     user: str = typer.Option(..., "--user", help="Target account handle."),
     limit: int = typer.Option(10, "--limit", min=1, max=100, help="Number of posts to return."),
+    replies: str = typer.Option("true", "--replies", help="Include replies: true or false."),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     handle = _normalize_handle(user)
@@ -39,7 +49,8 @@ def timeline_cmd(
     if not isinstance(user_id, str) or not user_id:
         raise UsageError(f"Unable to resolve user id for @{handle}.")
 
-    posts = get_user_posts(client, user_id, limit=limit)
+    include_replies = _parse_bool_text(replies, option_name="--replies")
+    posts = get_user_posts(client, user_id, limit=limit, exclude_replies=not include_replies)
     output = {
         "message": "Fetched timeline.",
         "user": {
