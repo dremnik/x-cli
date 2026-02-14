@@ -12,7 +12,28 @@ from typing import Any
 from xcli.core.errors import ApiError, UsageError
 
 DEFAULT_POST_FIELDS = ["created_at", "author_id", "public_metrics"]
+DETAIL_POST_FIELDS = [
+    "created_at",
+    "author_id",
+    "public_metrics",
+    "entities",
+    "article",
+    "note_tweet",
+    "attachments",
+    "card_uri",
+    "suggested_source_links",
+    "suggested_source_links_with_counts",
+]
 DEFAULT_USER_FIELDS = ["id", "username", "name"]
+DETAIL_MEDIA_FIELDS = [
+    "media_key",
+    "type",
+    "url",
+    "preview_image_url",
+    "width",
+    "height",
+    "alt_text",
+]
 UPLOAD_IMAGE_MEDIA_TYPES = {
     "image/jpeg",
     "image/bmp",
@@ -189,9 +210,15 @@ def get_post_by_id(client: Any, post_id: str) -> dict[str, Any]:
     try:
         response = client.posts.get_by_id(
             id=post_id,
-            tweet_fields=DEFAULT_POST_FIELDS,
-            expansions=["author_id"],
+            tweet_fields=DETAIL_POST_FIELDS,
+            expansions=[
+                "author_id",
+                "article.cover_media",
+                "article.media_entities",
+                "attachments.media_keys",
+            ],
             user_fields=DEFAULT_USER_FIELDS,
+            media_fields=DETAIL_MEDIA_FIELDS,
         )
     except Exception as exc:  # pragma: no cover
         raise ApiError(_format_api_exception("Failed to fetch post", exc)) from exc
@@ -211,6 +238,10 @@ def get_post_by_id(client: Any, post_id: str) -> dict[str, Any]:
         "author_id": data.get("author_id"),
         "author_username": data.get("author_username"),
         "author_name": data.get("author_name"),
+        "article": data.get("article"),
+        "note_tweet": data.get("note_tweet"),
+        "entities": data.get("entities"),
+        "public_metrics": data.get("public_metrics"),
         "raw": raw,
     }
 

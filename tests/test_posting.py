@@ -1,7 +1,12 @@
 import pytest
 
 from xcli.core.errors import UsageError
-from xcli.core.posting import build_payload, build_post_payload, validate_post_id
+from xcli.core.posting import (
+    build_payload,
+    build_post_payload,
+    parse_post_reference,
+    validate_post_id,
+)
 
 
 def test_validate_post_id_accepts_numeric() -> None:
@@ -46,3 +51,26 @@ def test_build_quote_payload_rejects_media() -> None:
 def test_build_payload_rejects_too_many_media() -> None:
     with pytest.raises(UsageError):
         build_payload(op="post", text="hey", media_ids=["1", "2", "3", "4", "5"])
+
+
+def test_parse_post_reference_accepts_id() -> None:
+    assert parse_post_reference(post_id="2013045749580259680") == "2013045749580259680"
+
+
+def test_parse_post_reference_accepts_url() -> None:
+    assert (
+        parse_post_reference(url="https://x.com/arscontexta/status/2013045749580259680?s=20")
+        == "2013045749580259680"
+    )
+
+
+def test_parse_post_reference_rejects_missing_or_duplicate_inputs() -> None:
+    with pytest.raises(UsageError):
+        parse_post_reference()
+    with pytest.raises(UsageError):
+        parse_post_reference(post_id="1", url="https://x.com/a/status/1")
+
+
+def test_parse_post_reference_rejects_non_post_url() -> None:
+    with pytest.raises(UsageError):
+        parse_post_reference(url="https://x.com/arscontexta")

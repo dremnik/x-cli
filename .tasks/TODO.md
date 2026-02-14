@@ -29,7 +29,17 @@
 - [completed] Wire `xcli post` command to support `--video` and `--srt`, including validation and preview output.
 - [completed] Add/update tests and run verification checklist (`pytest`, `ruff`, `mypy`).
 - [completed] User validation of live video+subtitle posting flow.
-- [pending] Commit on approval.
+- [completed] Commit on approval.
+
+- [completed] Add `xcli posts get` markdown export support with `--md` and unified `--out` file output.
+- [completed] Add post URL parsing support (`--id` or `--url`) for `xcli posts get`.
+- [completed] Add tests for URL parsing and markdown rendering.
+- [completed] Run verification checklist (`pytest`, `ruff`, `mypy`) for posts-get enhancements.
+- [completed] Preserve article code block placement in markdown export by injecting blocks at source placeholders.
+- [completed] Emit post metadata as YAML frontmatter for `xcli posts get --md` output.
+- [completed] Simplify article markdown rendering to raw/plain-text structure (remove heading/list heuristics).
+- [completed] Move markdown rendering into `xcli.core.markdown` and reuse from `posts get`.
+- [completed] Improve normal-post markdown output with URL reinsertion and attachment section.
 
 ### Notes
 

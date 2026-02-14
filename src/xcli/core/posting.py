@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from xcli.core.errors import UsageError
 
@@ -17,6 +18,31 @@ def validate_post_id(value: str) -> str:
     if not _TWEET_ID_RE.fullmatch(post_id):
         raise UsageError("Post id must be a numeric ID.")
     return post_id
+
+
+def parse_post_reference(*, post_id: str | None = None, url: str | None = None) -> str:
+    id_value = (post_id or "").strip()
+    url_value = (url or "").strip()
+
+    if bool(id_value) == bool(url_value):
+        raise UsageError("Provide exactly one of --id or --url.")
+
+    if id_value:
+        return validate_post_id(id_value)
+
+    parsed = urlparse(url_value)
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    if host not in {"x.com", "twitter.com", "mobile.x.com", "mobile.twitter.com"}:
+        raise UsageError("--url must be an x.com or twitter.com post URL.")
+
+    parts = [part for part in parsed.path.split("/") if part]
+    status_index = next((idx for idx, part in enumerate(parts) if part == "status"), -1)
+    if status_index == -1 or status_index + 1 >= len(parts):
+        raise UsageError("--url must include /status/<post_id>.")
+
+    return validate_post_id(parts[status_index + 1])
 
 
 def _normalize_media_ids(media_ids: list[str] | None) -> list[str]:

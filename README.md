@@ -100,6 +100,8 @@ For `--srt`, supported subtitle formats are `.srt` and `.vtt`.
 - `xcli posts mine`
 - `xcli posts mine --replies false`
 - `xcli posts get --id <tweet_id>`
+- `xcli posts get --url <post_url>`
+- `xcli posts get --id <tweet_id> --md --out post.md`
 - `xcli timeline --user <handle>`
 - `xcli timeline --user <handle> --replies false`
 
