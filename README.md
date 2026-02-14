@@ -24,10 +24,16 @@ export TWITTER_CLIENT_SECRET="..."
 Set your app callback/redirect URL to `http://localhost:3000/callback`.
 If needed, override in the CLI with `XCLI_REDIRECT_URI`.
 
-2. Run login flow:
+2. Run login flow (prints an auth URL you can open manually):
 
 ```bash
 xcli auth login
+```
+
+Optional: attempt auto-open in your default browser:
+
+```bash
+xcli auth login --open-browser
 ```
 
 3. Draft content:

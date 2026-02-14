@@ -19,11 +19,15 @@ app = typer.Typer(no_args_is_help=True, help="Authenticate xcli with the X API."
 
 @app.command("login")
 def login(
-    no_browser: bool = typer.Option(False, help="Do not auto-open a browser."),
+    open_browser: bool = typer.Option(
+        False,
+        "--open-browser",
+        help="Try to auto-open browser for authorization.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     settings = load_settings()
-    token = run_login(settings, open_browser=not no_browser)
+    token = run_login(settings, open_browser=open_browser)
 
     store = TokenStore()
     store.save(token)

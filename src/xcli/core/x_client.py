@@ -294,7 +294,7 @@ def upload_media_file(client: Any, file_path: Path) -> dict[str, Any]:
 
     url = f"{client.base_url}/2/media/upload"
     headers = {"Authorization": f"Bearer {access_token}"}
-    data = {
+    form_data = {
         "media_category": "tweet_image",
         "media_type": media_type,
     }
@@ -302,7 +302,7 @@ def upload_media_file(client: Any, file_path: Path) -> dict[str, Any]:
     try:
         with file_path.open("rb") as handle:
             files = {"media": (file_path.name, handle, media_type)}
-            response = client.session.post(url, headers=headers, data=data, files=files)
+            response = client.session.post(url, headers=headers, data=form_data, files=files)
         response.raise_for_status()
     except Exception as exc:  # pragma: no cover
         raise ApiError(
@@ -310,14 +310,14 @@ def upload_media_file(client: Any, file_path: Path) -> dict[str, Any]:
         ) from exc
 
     raw = _to_data(response.json())
-    data = _as_mapping(_as_mapping(raw).get("data"))
-    media_id = data.get("id")
+    response_data = _as_mapping(_as_mapping(raw).get("data"))
+    media_id = response_data.get("id")
     if not isinstance(media_id, str) or not media_id:
         raise ApiError("Media upload response did not include an id.")
 
     return {
         "id": media_id,
-        "media_key": data.get("media_key"),
+        "media_key": response_data.get("media_key"),
         "raw": raw,
     }
 

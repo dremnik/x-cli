@@ -10,6 +10,7 @@
 - [x] Implement media upload + attachment support in post/reply flows.
 - [x] Investigate tweet scheduling endpoint availability in public XDK/OpenAPI.
 - [x] Add tests for new functionality and run validation (`pytest`, `ruff`, `mypy`).
+- [x] Fix OAuth callback handling for WSL/manual browser flows (avoid immediate 0s timeout).
 
 ### Notes
 
@@ -17,6 +18,7 @@
 - XDK supports required read endpoints: `users.get_posts`, `posts.get_by_id`, `users.get_timeline`, and `users.get_by_username`.
 - XDK OpenAPI includes Spaces `scheduled` state but no tweet scheduling field/path in post create APIs.
 - Media upload endpoint requires OAuth scope `media.write`; existing tokens without it must re-login.
+- `xcli auth login` now defaults to manual URL open; use `--open-browser` to attempt auto-open.
 
 ### Testing checklist
 

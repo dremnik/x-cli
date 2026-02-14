@@ -79,11 +79,18 @@ def wait_for_callback(redirect_uri: str, *, timeout_sec: int = 300) -> str:
             return
 
     server = HTTPServer((host, port), CallbackHandler)
-    server.timeout = timeout_sec
+    server.timeout = 1.0
     started = time.monotonic()
+    deadline = started + timeout_sec
 
     try:
-        server.handle_request()
+        while "callback_url" not in result and "error" not in result:
+            now = time.monotonic()
+            if now >= deadline:
+                break
+            remaining = max(0.01, deadline - now)
+            server.timeout = min(1.0, remaining)
+            server.handle_request()
     finally:
         server.server_close()
 
@@ -103,7 +110,10 @@ def run_login(settings: Settings, *, open_browser: bool) -> dict[str, Any]:
     print("Open this URL to authorize xcli:")
     print(auth_url)
     if open_browser:
-        webbrowser.open(auth_url)
+        try:
+            webbrowser.open(auth_url)
+        except Exception:
+            print("Could not open browser automatically. Open the URL above manually.")
 
     print(f"Waiting for callback at {settings.redirect_uri} ...")
     callback_url = wait_for_callback(settings.redirect_uri)
