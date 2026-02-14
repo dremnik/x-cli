@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "x-cli"
+name = "xcli-v2"
 version = "0.1.0"
 description = "Open-source CLI for composing and publishing X posts"
 readme = "README.md"

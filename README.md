@@ -9,7 +9,7 @@ It is designed for local-first usage, safe publishing defaults, and open-source 
 Install from PyPI:
 
 ```bash
-pip install x-cli
+pip install xcli-v2
 ```
 
 ## Quickstart
