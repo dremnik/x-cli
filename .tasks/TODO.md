@@ -21,6 +21,20 @@
 - Media upload endpoint requires OAuth scope `media.write`; existing tokens without it must re-login.
 - `xcli auth login` now defaults to manual URL open; use `--open-browser` to attempt auto-open.
 
+## 2026-02-14
+
+- [completed] Agree requirement: keep download/upload separation and add video+subtitle posting to `xcli` only.
+- [completed] Finalize CLI shape: `xcli post --video <file> --srt <file>` (no separate command).
+- [completed] Implement media upload flow for video + subtitle sidecar association in `xcli` core client.
+- [completed] Wire `xcli post` command to support `--video` and `--srt`, including validation and preview output.
+- [completed] Add/update tests and run verification checklist (`pytest`, `ruff`, `mypy`).
+- [completed] User validation of live video+subtitle posting flow.
+- [pending] Commit on approval.
+
+### Notes
+
+- Testing checklist: `.tasks/notes/2026-02-14-testing-checklist.md`.
+
 ### Testing checklist
 
 - See `.tasks/notes/2026-02-13-testing-checklist.md` for the detailed checklist and live command validations.

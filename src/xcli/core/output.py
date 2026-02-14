@@ -27,6 +27,10 @@ def emit(data: Mapping[str, Any], *, json_output: bool) -> None:
         "logged_in",
         "expires_at",
         "media_count",
+        "video_media_id",
+        "subtitle_media_id",
+        "video_file",
+        "subtitle_file",
         "token_path",
         "warning",
     ):

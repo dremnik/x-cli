@@ -37,6 +37,21 @@ def _normalize_media_ids(media_ids: list[str] | None) -> list[str]:
     return normalized
 
 
+def build_post_payload(*, text: str | None, media_ids: list[str] | None = None) -> dict[str, Any]:
+    media = _normalize_media_ids(media_ids)
+    text_value = (text or "").strip()
+
+    if not text_value and not media:
+        raise UsageError("Post requires text or media.")
+
+    payload: dict[str, Any] = {}
+    if text_value:
+        payload["text"] = text_value
+    if media:
+        payload["media"] = {"media_ids": media}
+    return payload
+
+
 def build_payload(
     *,
     op: Operation,
@@ -44,13 +59,10 @@ def build_payload(
     to_id: str | None = None,
     media_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    media = _normalize_media_ids(media_ids)
-
     if op == "post":
-        payload: dict[str, Any] = {"text": text}
-        if media:
-            payload["media"] = {"media_ids": media}
-        return payload
+        return build_post_payload(text=text, media_ids=media_ids)
+
+    media = _normalize_media_ids(media_ids)
     if op == "reply":
         if not to_id:
             raise UsageError("reply requires --to <post_id>.")

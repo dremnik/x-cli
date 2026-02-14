@@ -66,9 +66,25 @@ xcli post --file draft.txt
 xcli post "launch day" --media image1.png --media image2.jpg
 ```
 
+8. Post a video with subtitle sidecar:
+
+```bash
+xcli post --video clip.mp4 --srt clip.srt
+```
+
+Optional post text:
+
+```bash
+xcli post "launch clip" --video clip.mp4 --srt clip.srt
+```
+
 Currently supported media types are image uploads accepted by the X media upload endpoint (jpeg, png, webp, bmp, tiff).
 Media upload requires OAuth scope `media.write`; if you logged in before this was added,
 run `xcli auth login` again to refresh token scopes.
+
+For `--video`, supported formats are `.mp4`, `.m4v`, `.mov`, `.webm`, and `.ts`.
+For `--srt`, supported subtitle formats are `.srt` and `.vtt`.
+`--video` and `--srt` must be used together and cannot be combined with `--media`.
 
 ## Commands
 
@@ -78,6 +94,7 @@ run `xcli auth login` again to refresh token scopes.
 - `xcli auth logout`
 - `xcli compose`
 - `xcli post`
+- `xcli post --video <file> --srt <file>`
 - `xcli reply --to <tweet_id>`
 - `xcli quote --to <tweet_id>`
 - `xcli posts mine`

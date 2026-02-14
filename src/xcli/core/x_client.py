@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import mimetypes
+import re
+import time
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,19 @@ UPLOAD_IMAGE_MEDIA_TYPES = {
     "image/pjpeg",
     "image/tiff",
 }
+VIDEO_EXT_TO_MEDIA_TYPE = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".ts": "video/mp2t",
+}
+SUBTITLE_EXT_TO_MEDIA_TYPE = {
+    ".srt": "text/srt",
+    ".vtt": "text/vtt",
+}
+SUBTITLE_LANG_RE = re.compile(r"^[A-Z]{2}$")
+VIDEO_CHUNK_BYTES = 4 * 1024 * 1024
 
 
 def _load_client_cls() -> Any:
@@ -298,6 +313,22 @@ def _detect_upload_media_type(file_path: Path) -> str:
     return media_type
 
 
+def _detect_upload_video_media_type(file_path: Path) -> str:
+    media_type = VIDEO_EXT_TO_MEDIA_TYPE.get(file_path.suffix.lower())
+    if not isinstance(media_type, str):
+        allowed = ", ".join(sorted(VIDEO_EXT_TO_MEDIA_TYPE))
+        raise UsageError(f"Unsupported video format for `{file_path}`. Supported: {allowed}.")
+    return media_type
+
+
+def _detect_upload_subtitle_media_type(file_path: Path) -> str:
+    media_type = SUBTITLE_EXT_TO_MEDIA_TYPE.get(file_path.suffix.lower())
+    if not isinstance(media_type, str):
+        allowed = ", ".join(sorted(SUBTITLE_EXT_TO_MEDIA_TYPE))
+        raise UsageError(f"Unsupported subtitle format for `{file_path}`. Supported: {allowed}.")
+    return media_type
+
+
 def upload_media_file(client: Any, file_path: Path) -> dict[str, Any]:
     if not file_path.exists() or not file_path.is_file():
         raise UsageError(f"Media file not found: {file_path}")
@@ -335,6 +366,303 @@ def upload_media_file(client: Any, file_path: Path) -> dict[str, Any]:
         "id": media_id,
         "media_key": response_data.get("media_key"),
         "raw": raw,
+    }
+
+
+def _require_access_token(client: Any) -> str:
+    access_token = getattr(client, "access_token", None)
+    if not isinstance(access_token, str) or not access_token:
+        raise ApiError("Media upload requires an OAuth user access token.")
+    return access_token
+
+
+def _extract_media_id(raw: Mapping[str, Any], *, context: str) -> str:
+    response_data = _as_mapping(raw.get("data"))
+    media_id = response_data.get("id")
+    if not isinstance(media_id, str) or not media_id:
+        raise ApiError(f"{context} response did not include an id.")
+    return media_id
+
+
+def _extract_processing_info(raw: Mapping[str, Any]) -> Mapping[str, Any]:
+    return _as_mapping(_as_mapping(raw.get("data")).get("processing_info"))
+
+
+def _processing_error_message(info: Mapping[str, Any]) -> str | None:
+    error = _as_mapping(info.get("error"))
+    name = error.get("name")
+    message = error.get("message")
+    if isinstance(name, str) and isinstance(message, str) and name and message:
+        return f"{name}: {message}"
+    if isinstance(message, str) and message:
+        return message
+    return None
+
+
+def _wait_for_video_processing(
+    client: Any,
+    media_id: str,
+    *,
+    timeout_sec: int,
+    initial_info: Mapping[str, Any],
+) -> None:
+    info: Mapping[str, Any] = initial_info
+    deadline = time.monotonic() + timeout_sec
+
+    while info:
+        state = info.get("state")
+        if state == "succeeded":
+            return
+        if state == "failed":
+            detail = _processing_error_message(info)
+            if detail:
+                raise ApiError(f"Video processing failed: {detail}")
+            raise ApiError("Video processing failed.")
+        if state not in {"pending", "in_progress"}:
+            return
+
+        now = time.monotonic()
+        if now >= deadline:
+            raise ApiError(f"Timed out waiting for video processing after {timeout_sec}s.")
+
+        wait_value = info.get("check_after_secs")
+        if isinstance(wait_value, (int, float)):
+            wait_sec = max(1.0, float(wait_value))
+        else:
+            wait_sec = 1.0
+
+        remaining = deadline - now
+        time.sleep(min(wait_sec, max(0.1, remaining)))
+
+        access_token = _require_access_token(client)
+        url = f"{client.base_url}/2/media/upload"
+        params = {"command": "STATUS", "media_id": media_id}
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        try:
+            response = client.session.get(url, headers=headers, params=params)
+            response.raise_for_status()
+        except Exception as exc:  # pragma: no cover
+            raise ApiError(_format_api_exception("Media status check failed", exc)) from exc
+
+        status_raw = _as_mapping(_to_data(response.json()))
+        info = _extract_processing_info(status_raw)
+
+
+def upload_video_media_file(
+    client: Any,
+    file_path: Path,
+    *,
+    poll_timeout_sec: int = 120,
+) -> dict[str, Any]:
+    if not file_path.exists() or not file_path.is_file():
+        raise UsageError(f"Media file not found: {file_path}")
+    if poll_timeout_sec < 1:
+        raise UsageError("poll_timeout_sec must be >= 1")
+
+    media_type = _detect_upload_video_media_type(file_path)
+    access_token = _require_access_token(client)
+
+    total_bytes = file_path.stat().st_size
+    if total_bytes <= 0:
+        raise UsageError(f"Video file is empty: {file_path}")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    init_url = f"{client.base_url}/2/media/upload/initialize"
+    init_payload = {
+        "media_type": media_type,
+        "media_category": "tweet_video",
+        "total_bytes": total_bytes,
+    }
+
+    try:
+        init_response = client.session.post(init_url, headers=headers, json=init_payload)
+        init_response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Video upload initialize failed", exc)) from exc
+
+    init_raw = _as_mapping(_to_data(init_response.json()))
+    media_id = _extract_media_id(init_raw, context="Video upload initialize")
+
+    append_url = f"{client.base_url}/2/media/upload/{media_id}/append"
+    try:
+        with file_path.open("rb") as handle:
+            segment_index = 0
+            while True:
+                chunk = handle.read(VIDEO_CHUNK_BYTES)
+                if not chunk:
+                    break
+                files = {"media": (f"chunk-{segment_index}.bin", chunk, media_type)}
+                data = {"segment_index": str(segment_index)}
+                append_response = client.session.post(
+                    append_url,
+                    headers=headers,
+                    data=data,
+                    files=files,
+                )
+                append_response.raise_for_status()
+                segment_index += 1
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Video upload append failed", exc)) from exc
+
+    finalize_url = f"{client.base_url}/2/media/upload/{media_id}/finalize"
+    try:
+        finalize_response = client.session.post(finalize_url, headers=headers)
+        finalize_response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Video upload finalize failed", exc)) from exc
+
+    finalize_raw = _as_mapping(_to_data(finalize_response.json()))
+    processing_info = _extract_processing_info(finalize_raw)
+    if processing_info:
+        _wait_for_video_processing(
+            client,
+            media_id,
+            timeout_sec=poll_timeout_sec,
+            initial_info=processing_info,
+        )
+
+    return {
+        "id": media_id,
+        "media_key": _as_mapping(finalize_raw.get("data")).get("media_key"),
+        "raw": finalize_raw,
+    }
+
+
+def upload_subtitle_media_file(client: Any, file_path: Path) -> dict[str, Any]:
+    if not file_path.exists() or not file_path.is_file():
+        raise UsageError(f"Media file not found: {file_path}")
+
+    media_type = _detect_upload_subtitle_media_type(file_path)
+    access_token = _require_access_token(client)
+
+    total_bytes = file_path.stat().st_size
+    if total_bytes <= 0:
+        raise UsageError(f"Subtitle file is empty: {file_path}")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    init_url = f"{client.base_url}/2/media/upload/initialize"
+    init_payload = {
+        "media_category": "subtitles",
+        "media_type": media_type,
+        "total_bytes": total_bytes,
+    }
+
+    try:
+        init_response = client.session.post(init_url, headers=headers, json=init_payload)
+        init_response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Subtitle upload initialize failed", exc)) from exc
+
+    init_raw = _as_mapping(_to_data(init_response.json()))
+    media_id = _extract_media_id(init_raw, context="Subtitle upload initialize")
+
+    append_url = f"{client.base_url}/2/media/upload/{media_id}/append"
+    try:
+        with file_path.open("rb") as handle:
+            files = {"media": (file_path.name, handle, media_type)}
+            data = {"segment_index": "0"}
+            append_response = client.session.post(
+                append_url,
+                headers=headers,
+                data=data,
+                files=files,
+            )
+        append_response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(
+            _format_api_exception(f"Subtitle upload append failed for {file_path.name}", exc)
+        ) from exc
+
+    finalize_url = f"{client.base_url}/2/media/upload/{media_id}/finalize"
+    try:
+        finalize_response = client.session.post(finalize_url, headers=headers)
+        finalize_response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Subtitle upload finalize failed", exc)) from exc
+
+    raw = _as_mapping(_to_data(finalize_response.json()))
+    media_id = _extract_media_id(raw, context="Subtitle upload finalize")
+    return {
+        "id": media_id,
+        "media_key": _as_mapping(raw.get("data")).get("media_key"),
+        "raw": raw,
+    }
+
+
+def attach_subtitle_to_video(
+    client: Any,
+    *,
+    video_media_id: str,
+    subtitle_media_id: str,
+    language_code: str = "EN",
+    display_name: str = "English",
+) -> dict[str, Any]:
+    lang = language_code.strip().upper()
+    if not SUBTITLE_LANG_RE.fullmatch(lang):
+        raise UsageError("Subtitle language code must be 2 letters (example: EN).")
+
+    title = display_name.strip()
+    if not title:
+        raise UsageError("Subtitle display name cannot be empty.")
+
+    access_token = _require_access_token(client)
+    url = f"{client.base_url}/2/media/subtitles"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {
+        "id": video_media_id,
+        "media_category": "TweetVideo",
+        "subtitles": {
+            "id": subtitle_media_id,
+            "language_code": lang,
+            "display_name": title,
+        },
+    }
+
+    try:
+        response = client.session.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Subtitle association failed", exc)) from exc
+
+    raw = _as_mapping(_to_data(response.json()))
+    return {"raw": raw}
+
+
+def upload_video_with_subtitles(
+    client: Any,
+    *,
+    video_file: Path,
+    subtitle_file: Path,
+    subtitle_language_code: str = "EN",
+    subtitle_display_name: str = "English",
+    poll_timeout_sec: int = 120,
+) -> dict[str, Any]:
+    if not video_file.exists() or not video_file.is_file():
+        raise UsageError(f"Media file not found: {video_file}")
+    if not subtitle_file.exists() or not subtitle_file.is_file():
+        raise UsageError(f"Media file not found: {subtitle_file}")
+
+    _detect_upload_video_media_type(video_file)
+    _detect_upload_subtitle_media_type(subtitle_file)
+
+    uploaded_video = upload_video_media_file(client, video_file, poll_timeout_sec=poll_timeout_sec)
+    uploaded_subtitle = upload_subtitle_media_file(client, subtitle_file)
+    associated = attach_subtitle_to_video(
+        client,
+        video_media_id=uploaded_video["id"],
+        subtitle_media_id=uploaded_subtitle["id"],
+        language_code=subtitle_language_code,
+        display_name=subtitle_display_name,
+    )
+
+    return {
+        "video_media_id": uploaded_video["id"],
+        "subtitle_media_id": uploaded_subtitle["id"],
+        "video": uploaded_video,
+        "subtitle": uploaded_subtitle,
+        "association": associated,
     }
 
 
