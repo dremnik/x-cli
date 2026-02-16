@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -9,9 +10,15 @@ from xcli.core.errors import UsageError
 
 MAX_POST_LEN = 25_000
 
+_FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n?", re.DOTALL)
+
+
+def strip_frontmatter(raw: str) -> str:
+    return _FRONTMATTER_RE.sub("", raw)
+
 
 def normalize_text(raw: str, *, max_chars: int = MAX_POST_LEN) -> str:
-    text = raw.replace("\r\n", "\n").strip()
+    text = strip_frontmatter(raw).replace("\r\n", "\n").strip()
     if not text:
         raise UsageError("Post text is empty.")
     if len(text) > max_chars:
