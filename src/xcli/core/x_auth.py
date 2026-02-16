@@ -128,25 +128,69 @@ def run_login(settings: Settings, *, open_browser: bool) -> dict[str, Any]:
     return token
 
 
+def _do_refresh(
+    token: dict[str, Any], client_id: str, client_secret: str
+) -> dict[str, Any]:
+    import requests
+    from requests.auth import HTTPBasicAuth
+
+    params: dict[str, str] = {
+        "grant_type": "refresh_token",
+        "refresh_token": token["refresh_token"],
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+
+    auth = HTTPBasicAuth(client_id, client_secret) if client_secret else None
+    if not client_secret:
+        params["client_id"] = client_id
+
+    resp = requests.post(
+        "https://api.x.com/2/oauth2/token",
+        data=params,
+        headers=headers,
+        auth=auth,
+    )
+    if not resp.ok:
+        raise AuthError(f"HTTP {resp.status_code}: {resp.text}")
+
+    data = resp.json()
+    refreshed: dict[str, Any] = {
+        "access_token": data["access_token"],
+        "token_type": data.get("token_type", "bearer"),
+        "expires_in": data.get("expires_in"),
+        "refresh_token": data.get("refresh_token", token["refresh_token"]),
+        "scope": data.get("scope", token.get("scope")),
+    }
+    if refreshed.get("expires_in"):
+        refreshed["expires_at"] = time.time() + refreshed["expires_in"]
+    if "client_id" in token:
+        refreshed["client_id"] = token["client_id"]
+    if "client_secret" in token:
+        refreshed["client_secret"] = token["client_secret"]
+    return refreshed
+
+
 def refresh_if_needed(settings: Settings, token: dict[str, Any]) -> dict[str, Any]:
     if "access_token" not in token:
         raise AuthError("Token file does not contain an access token. Run `xcli auth login`.")
 
-    if not settings.client_id:
+    client_id = settings.client_id or token.get("client_id", "")
+    if not client_id:
         return token
 
     if "refresh_token" not in token:
         return token
 
     OAuth2PKCEAuth = _load_oauth2_auth_cls()
+    client_secret = settings.client_secret or token.get("client_secret", "")
     kwargs: dict[str, Any] = {
-        "client_id": settings.client_id,
+        "client_id": client_id,
         "redirect_uri": settings.redirect_uri,
         "scope": " ".join(settings.scopes),
         "token": dict(token),
     }
-    if settings.client_secret:
-        kwargs["client_secret"] = settings.client_secret
+    if client_secret:
+        kwargs["client_secret"] = client_secret
 
     auth = OAuth2PKCEAuth(**kwargs)
 
@@ -159,7 +203,7 @@ def refresh_if_needed(settings: Settings, token: dict[str, Any]) -> dict[str, An
         return token
 
     try:
-        refreshed = auth.refresh_token()
+        refreshed = _do_refresh(token, client_id, client_secret)
     except Exception as exc:  # pragma: no cover
         raise AuthError(f"Token refresh failed: {exc}") from exc
 

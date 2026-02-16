@@ -29,6 +29,11 @@ def login(
     settings = load_settings()
     token = run_login(settings, open_browser=open_browser)
 
+    if settings.client_id:
+        token["client_id"] = settings.client_id
+    if settings.client_secret:
+        token["client_secret"] = settings.client_secret
+
     store = TokenStore()
     store.save(token)
 
