@@ -72,7 +72,10 @@ def build_post_payload(*, text: str | None, media_ids: list[str] | None = None) 
 
     payload: dict[str, Any] = {}
     if text_value:
-        payload["text"] = text_value
+        if len(text_value) > 280:
+            payload["note_tweet"] = {"text": text_value}
+        else:
+            payload["text"] = text_value
     if media:
         payload["media"] = {"media_ids": media}
     return payload
@@ -92,7 +95,11 @@ def build_payload(
     if op == "reply":
         if not to_id:
             raise UsageError("reply requires --to <post_id>.")
-        payload = {"text": text, "reply": {"in_reply_to_tweet_id": validate_post_id(to_id)}}
+        payload: dict[str, Any] = {"reply": {"in_reply_to_tweet_id": validate_post_id(to_id)}}
+        if len(text) > 280:
+            payload["note_tweet"] = {"text": text}
+        else:
+            payload["text"] = text
         if media:
             payload["media"] = {"media_ids": media}
         return payload
@@ -101,7 +108,12 @@ def build_payload(
             raise UsageError("quote requires --to <post_id>.")
         if media:
             raise UsageError("quote does not support media attachments.")
-        return {"text": text, "quote_tweet_id": validate_post_id(to_id)}
+        payload = {"quote_tweet_id": validate_post_id(to_id)}
+        if len(text) > 280:
+            payload["note_tweet"] = {"text": text}
+        else:
+            payload["text"] = text
+        return payload
     raise UsageError(f"Unknown operation: {op}")
 
 

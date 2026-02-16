@@ -7,7 +7,7 @@ from pathlib import Path
 
 from xcli.core.errors import UsageError
 
-MAX_POST_LEN = 280
+MAX_POST_LEN = 25_000
 
 
 def normalize_text(raw: str, *, max_chars: int = MAX_POST_LEN) -> str:
