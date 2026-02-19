@@ -105,7 +105,7 @@ For `--srt`, supported subtitle formats are `.srt` and `.vtt`.
 - `xcli timeline --user <handle>`
 - `xcli timeline --user <handle> --replies false`
 - `xcli bookmark fetch`
-- `xcli bookmark fetch --max-results <N>`
+- `xcli bookmark fetch --max-results <N>` (default: 10)
 - `xcli bookmark create <url_or_id>`
 - `xcli bookmark delete <url_or_id>`
 
