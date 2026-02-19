@@ -86,6 +86,25 @@ def _format_api_exception(prefix: str, exc: Exception) -> str:
     reason = getattr(response, "reason", "")
     base = f"{prefix}: {status_code} {reason}".strip()
 
+    suffix = ""
+    headers = getattr(response, "headers", {})
+    if isinstance(headers, Mapping):
+        # Attempt standard rate limit header extraction
+        limit = headers.get("x-rate-limit-limit")
+        remaining = headers.get("x-rate-limit-remaining")
+        reset = headers.get("x-rate-limit-reset")
+        
+        if limit is not None and remaining is not None:
+             suffix = f"{suffix}\nRate limit: {remaining}/{limit}"
+        
+        if reset is not None:
+             try:
+                 reset_ts = int(reset)
+                 reset_time = time.strftime("%H:%M:%S", time.localtime(reset_ts))
+                 suffix = f"{suffix} (resets at {reset_time})"
+             except (ValueError, TypeError):
+                 pass
+
     try:
         payload = response.json()
     except Exception:
@@ -95,15 +114,15 @@ def _format_api_exception(prefix: str, exc: Exception) -> str:
         title = payload.get("title")
         detail = payload.get("detail")
         if isinstance(title, str) and isinstance(detail, str):
-            return f"{base} - {title}: {detail}"
+            return f"{base} - {title}: {detail}{suffix}"
         if isinstance(detail, str):
-            return f"{base} - {detail}"
+            return f"{base} - {detail}{suffix}"
 
     text = getattr(response, "text", "")
     if isinstance(text, str) and text:
-        return f"{base} - {text[:500]}"
+        return f"{base} - {text[:500]}{suffix}"
 
-    return base
+    return f"{base}{suffix}"
 
 
 def make_user_client(access_token: str) -> Any:
@@ -334,6 +353,91 @@ def get_user_timeline(
         raise ApiError(_format_api_exception("Failed to fetch timeline", exc)) from exc
 
     return _collect_posts(pages, limit=limit)
+
+
+def fetch_bookmarks(
+    client: Any,
+    user_id: str,
+    *,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Fetch user bookmarks using raw session calls."""
+    collected: list[dict[str, Any]] = []
+    if limit < 1:
+        return collected
+
+    access_token = _require_access_token(client)
+    url = f"{client.base_url}/2/users/{user_id}/bookmarks"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {
+        "max_results": min(max(limit, 1), 100),
+        "tweet.fields": ",".join(DEFAULT_POST_FIELDS),
+        "expansions": "author_id",
+        "user.fields": ",".join(DEFAULT_USER_FIELDS),
+    }
+
+    pagination_token: str | None = None
+    while True:
+        current_params = params.copy()
+        if pagination_token:
+            current_params["pagination_token"] = pagination_token
+
+        try:
+            response = client.session.get(url, headers=headers, params=current_params)
+            response.raise_for_status()
+        except Exception as exc:  # pragma: no cover
+            raise ApiError(_format_api_exception("Failed to fetch bookmarks", exc)) from exc
+
+        raw = _to_data(response.json())
+        raw_map = _as_mapping(raw)
+        meta = _as_mapping(raw_map.get("meta"))
+        
+        users_by_id = _extract_user_lookup(raw_map)
+        page_posts = _as_mapping_list(raw_map.get("data"))
+        
+        for post in page_posts:
+            collected.append(_with_author_fields(post, users_by_id=users_by_id))
+            if len(collected) >= limit:
+                return collected
+
+        pagination_token = meta.get("next_token")
+        if not isinstance(pagination_token, str) or not pagination_token:
+            break
+
+    return collected
+
+
+def create_bookmark(client: Any, user_id: str, tweet_id: str) -> dict[str, Any]:
+    """Create a bookmark for the authenticated user."""
+    access_token = _require_access_token(client)
+    url = f"{client.base_url}/2/users/{user_id}/bookmarks"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"tweet_id": tweet_id}
+
+    try:
+        response = client.session.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Failed to create bookmark", exc)) from exc
+
+    raw = _to_data(response.json())
+    return dict(_as_mapping(raw.get("data")))
+
+
+def delete_bookmark(client: Any, user_id: str, tweet_id: str) -> dict[str, Any]:
+    """Delete a bookmark for the authenticated user."""
+    access_token = _require_access_token(client)
+    url = f"{client.base_url}/2/users/{user_id}/bookmarks/{tweet_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        response = client.session.delete(url, headers=headers)
+        response.raise_for_status()
+    except Exception as exc:  # pragma: no cover
+        raise ApiError(_format_api_exception("Failed to delete bookmark", exc)) from exc
+
+    raw = _to_data(response.json())
+    return dict(_as_mapping(raw.get("data")))
 
 
 def _detect_upload_media_type(file_path: Path) -> str:

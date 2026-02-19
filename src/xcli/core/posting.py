@@ -92,7 +92,10 @@ def build_payload(
     if op == "reply":
         if not to_id:
             raise UsageError("reply requires --to <post_id>.")
-        payload: dict[str, Any] = {"text": text, "reply": {"in_reply_to_tweet_id": validate_post_id(to_id)}}
+        payload: dict[str, Any] = {
+            "text": text,
+            "reply": {"in_reply_to_tweet_id": validate_post_id(to_id)},
+        }
         if media:
             payload["media"] = {"media_ids": media}
         return payload
