@@ -32,6 +32,22 @@ def test_bookmark_fetch_prints_results(
 
 @patch("xcli.cmd.bookmarks.make_authed_client")
 @patch("xcli.cmd.bookmarks.get_me")
+@patch("xcli.cmd.bookmarks.fetch_bookmarks")
+def test_bookmark_fetch_with_max_results_alias(
+    mock_fetch: MagicMock,
+    mock_get_me: MagicMock,
+    mock_client: MagicMock,
+) -> None:
+    mock_get_me.return_value = {"id": "123"}
+    mock_fetch.return_value = []
+
+    result = runner.invoke(app, ["bookmark", "fetch", "--max-results", "5"])
+    assert result.exit_code == 0
+    mock_fetch.assert_called_with(mock_client(), "123", limit=5)
+
+
+@patch("xcli.cmd.bookmarks.make_authed_client")
+@patch("xcli.cmd.bookmarks.get_me")
 @patch("xcli.cmd.bookmarks.create_bookmark")
 def test_bookmark_create_success(
     mock_create: MagicMock,

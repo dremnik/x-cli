@@ -40,7 +40,9 @@ def _print_post_list(posts: list[dict[str, Any]]) -> None:
 
 @app.command("fetch")
 def fetch(
-    limit: int = typer.Option(10, "--limit", min=1, max=100, help="Number of bookmarks to return."),
+    limit: int = typer.Option(
+        10, "--limit", "--max-results", min=1, max=100, help="Number of bookmarks to return (max_results)."
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """List recent bookmarks."""

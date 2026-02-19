@@ -370,7 +370,7 @@ def fetch_bookmarks(
     url = f"{client.base_url}/2/users/{user_id}/bookmarks"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {
-        "max_results": min(max(limit, 5), 100),
+        "max_results": min(max(limit, 1), 100),
         "tweet.fields": ",".join(DEFAULT_POST_FIELDS),
         "expansions": "author_id",
         "user.fields": ",".join(DEFAULT_USER_FIELDS),

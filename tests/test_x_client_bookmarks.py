@@ -79,6 +79,13 @@ def test_fetch_bookmarks_calls_correct_endpoint() -> None:
     assert client.session.last_params["max_results"] == 5
 
 
+def test_fetch_bookmarks_respects_low_limit() -> None:
+    client = _FakeClient()
+    fetch_bookmarks(client, "123", limit=1)
+    
+    assert client.session.last_params["max_results"] == 1
+
+
 def test_create_bookmark_calls_correct_endpoint() -> None:
     client = _FakeClient()
     result = create_bookmark(client, "123", "999")
