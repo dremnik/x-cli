@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from xcli.cmd.auth import app as auth_app
+from xcli.cmd.bookmarks import app as bookmarks_app
 from xcli.cmd.compose import compose_cmd
 from xcli.cmd.posts import app as posts_app
 from xcli.cmd.publish import post_cmd, quote_cmd, reply_cmd
@@ -18,6 +19,7 @@ app = typer.Typer(
 )
 
 app.add_typer(auth_app, name="auth")
+app.add_typer(bookmarks_app, name="bookmark")
 app.add_typer(posts_app, name="posts")
 app.command("compose")(compose_cmd)
 app.command("post")(post_cmd)
